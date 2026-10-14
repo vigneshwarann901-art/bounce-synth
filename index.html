@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bounce Synth — Musical Physics Puzzle & Sandbox</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #070810;
+            font-family: 'Space Grotesk', sans-serif;
+            color: #e2e8f0;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .neon-panel {
+            background: rgba(13, 16, 29, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+        .tool-btn {
+            transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .tool-btn:hover {
+            transform: translateY(-1px);
+        }
+        .tool-btn.active-pluck {
+            background: rgba(6, 182, 212, 0.2);
+            border-color: #22d3ee;
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.35);
+            color: #fff;
+        }
+        .tool-btn.active-drum {
+            background: rgba(236, 72, 153, 0.2);
+            border-color: #f472b6;
+            box-shadow: 0 0 15px rgba(244, 114, 182, 0.35);
+            color: #fff;
+        }
+        .tool-btn.active-arp {
+            background: rgba(234, 179, 8, 0.2);
+            border-color: #facc15;
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.35);
+            color: #fff;
+        }
+        .tool-btn.active-erase {
+            background: rgba(239, 68, 68, 0.25);
+            border-color: #f87171;
+            box-shadow: 0 0 15px rgba(248, 113, 113, 0.35);
+            color: #fff;
+        }
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: rgba(255,255,255,0.12);
+            height: 6px;
+            border-radius: 999px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #38bdf8;
+            box-shadow: 0 0 10px #38bdf8;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="relative flex flex-col h-screen w-screen overflow-hidden">
+
+    <!-- TOP CONTROL BAR -->
+    <header class="neon-panel z-20 mx-2 mt-2 px-3 py-2 rounded-2xl flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+        <!-- Brand & Level Selector -->
+        <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div class="flex items-center gap-2 pr-2 border-r border-slate-700/70">
+                <div class="w-3 h-3 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_12px_#22d3ee]"></div>
+                <span class="font-bold tracking-wider text-sm sm:text-base bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-amber-300 bg-clip-text text-transparent">
+                    BOUNCE SYNTH
+                </span>
+            </div>
+
+            <!-- Mode / Level Picker -->
+            <div class="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800" id="level-buttons">
+                <button data-level="0" class="lvl-btn px-2.5 py-1 rounded-lg font-medium transition">L1</button>
+                <button data-level="1" class="lvl-btn px-2.5 py-1 rounded-lg font-medium transition">L2</button>
+                <button data-level="2" class="lvl-btn px-2.5 py-1 rounded-lg font-medium transition">L3</button>
+                <button data-level="3" class="lvl-btn px-2.5 py-1 rounded-lg font-medium transition">L4</button>
+                <button data-level="4" class="lvl-btn px-2.5 py-1 rounded-lg font-medium transition">L5</button>
+                <button data-level="5" class="lvl-btn px-2.5 py-1 rounded-lg font-medium transition">L6</button>
+                <button data-level="6" class="lvl-btn px-2.5 py-1 rounded-lg font-semibold text-amber-300 transition flex items-center gap-1">
+                    <span>★</span> Sandbox
+                </button>
+            </div>
+        </div>
+
+        <!-- Instrument / Line Type Selector -->
+        <div class="flex items-center gap-1.5 flex-wrap">
+            <button id="btn-pluck" onclick="setTool('pluck')" class="tool-btn active-pluck px-3 py-1.5 rounded-xl border border-slate-700/80 flex items-center gap-1.5 font-medium">
+                <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee]"></span>
+                <span>Synth Pluck</span>
+            </button>
+            <button id="btn-drum" onclick="setTool('drum')" class="tool-btn px-3 py-1.5 rounded-xl border border-slate-700/80 text-slate-300 flex items-center gap-1.5 font-medium">
+                <span class="w-2.5 h-2.5 rounded-full bg-pink-500 shadow-[0_0_8px_#ec4899]"></span>
+                <span>Super Bass</span>
+            </button>
+            <button id="btn-arp" onclick="setTool('arp')" class="tool-btn px-3 py-1.5 rounded-xl border border-slate-700/80 text-slate-300 flex items-center gap-1.5 font-medium">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_#facc15]"></span>
+                <span>Boost Bell</span>
+            </button>
+            <button id="btn-erase" onclick="setTool('erase')" class="tool-btn px-3 py-1.5 rounded-xl border border-slate-700/80 text-slate-300 flex items-center gap-1.5 font-medium" title="Or Right-Click & Drag">
+                <svg class="w-3.5 h-3.5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <span>Erase</span>
+            </button>
+        </div>
+
+        <!-- Audio & Canvas Actions -->
+        <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <!-- Scale Selector -->
+            <div class="flex items-center gap-1.5 bg-slate-900/90 px-2.5 py-1 rounded-xl border border-slate-800">
+                <span class="text-slate-400 text-xs">Scale:</span>
+                <select id="scale-select" class="bg-transparent text-cyan-300 font-medium focus:outline-none cursor-pointer text-xs sm:text-sm">
+                    <option value="pentatonic" class="bg-slate-900">Neon Pentatonic</option>
+                    <option value="lofi" class="bg-slate-900">Lo-Fi Chill (Maj9)</option>
+                    <option value="cyberpunk" class="bg-slate-900">Cyberpunk Minor</option>
+                    <option value="major" class="bg-slate-900">Dreamy Lydian</option>
+                </select>
+            </div>
+
+            <!-- Spawn Rate -->
+            <div class="hidden md:flex items-center gap-2 bg-slate-900/90 px-2.5 py-1.5 rounded-xl border border-slate-800">
+                <span class="text-slate-400 text-xs">Tempo:</span>
+                <input id="rate-slider" type="range" min="350" max="2400" step="50" value="1300" class="w-20">
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-1">
+                <button onclick="undoLine()" class="px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700 text-slate-200 transition" title="Undo Last Line (Ctrl+Z)">
+                    Undo
+                </button>
+                <button onclick="clearLines()" class="px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-rose-950/80 hover:border-rose-500/50 border border-slate-700 text-slate-200 transition">
+                    Clear
+                </button>
+                <button id="mute-btn" onclick="toggleMute()" class="px-2.5 py-1.5 rounded-xl bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-200 transition flex items-center gap-1">
+                    <span id="mute-icon">🔊</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- SUB-HUD: LEVEL INFO & LIVE NOTE MONITOR -->
+    <div class="z-10 pointer-events-none flex justify-between items-start px-4 pt-2">
+        <div class="neon-panel pointer-events-auto px-3.5 py-2 rounded-xl flex flex-col gap-0.5 max-w-md">
+            <div class="flex items-center gap-2">
+                <span id="level-title" class="font-bold text-cyan-300 text-sm sm:text-base">Level 1: First Melody</span>
+                <span id="level-badge" class="mono text-xs px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-300">
+                    Goal: 0 / 5
+                </span>
+            </div>
+            <p id="level-desc" class="text-xs text-slate-300/90">
+                Click & drag to draw a musical bounce line that guides the orbs into the swirling portal.
+            </p>
+        </div>
+
+        <!-- Live Pitch Preview / Note Indicator -->
+        <div class="neon-panel px-3 py-1.5 rounded-xl flex items-center gap-3 text-xs mono">
+            <div class="flex items-center gap-1.5">
+                <span class="text-slate-400">LAST NOTE:</span>
+                <span id="last-note" class="text-cyan-400 font-bold text-sm w-8 text-center">--</span>
+            </div>
+            <div class="h-3 w-[1px] bg-slate-700"></div>
+            <div class="flex items-center gap-1.5">
+                <span class="text-slate-400">STRINGS:</span>
+                <span id="line-count" class="text-emerald-400 font-bold">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN INTERACTIVE CANVAS -->
+    <div class="relative flex-1 w-full h-full">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- LEVEL COMPLETE OVERLAY MODAL -->
+        <div id="win-modal" class="hidden absolute inset-0 z-30 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+            <div class="neon-panel p-6 sm:p-8 rounded-3xl max-w-sm w-full mx-4 text-center border border-cyan-400/50 shadow-[0_0_50px_rgba(34,211,238,0.25)] transform transition-all">
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-cyan-400 to-fuchsia-500 flex items-center justify-center text-2xl shadow-lg">
+                    🎵
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-1">Harmony Achieved!</h2>
+                <p id="win-subtitle" class="text-slate-300 text-sm mb-6">Your musical contraption guided all orbs home.</p>
+                <div class="flex gap-3 justify-center">
+                    <button onclick="closeWinModal()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium transition">
+                        Keep Jamming
+                    </button>
+                    <button onclick="nextLevel()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-white text-sm font-bold shadow-[0_0_20px_rgba(236,72,153,0.4)] transition">
+                        Next Level →
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM HINT BAR -->
+        <div class="pointer-events-none absolute bottom-3 inset-x-0 flex justify-center px-4">
+            <div class="neon-panel px-4 py-1.5 rounded-full text-[11px] sm:text-xs text-slate-300 flex items-center gap-3 shadow-lg">
+                <span>✨ <b>Left-Drag:</b> Draw String (Short = High Note, Long = Low Note)</span>
+                <span class="hidden sm:inline text-slate-600">•</span>
+                <span class="hidden sm:inline">🗑️ <b>Right-Drag / Erase Tool:</b> Cut Strings</span>
+                <span id="sandbox-hint" class="hidden text-amber-300 font-medium">• 🖐️ Drag Emitter or Portal to move them!</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================================================
+           1. WEB AUDIO SYNTHESIZER (Pure Procedural Web Audio API + Echo Delay)
+           ========================================================================= */
+        class SynthEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+                this.masterGain = null;
+                this.delayNode = null;
+                this.feedbackGain = null;
+                this.scaleName = 'pentatonic';
+
+                // Harmonious scales in MIDI note numbers
+                this.scales = {
+                    pentatonic: [48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88], // C Major Pentatonic
+                    lofi:       [48, 52, 55, 59, 62, 60, 64, 67, 71, 74, 72, 76, 79, 83, 86, 88],         // Cmaj9 lush chords
+                    cyberpunk:  [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84],     // A Minor / Phrygian touch
+                    major:      [48, 50, 52, 54, 55, 57, 59, 60, 62, 64, 66, 67, 69, 71, 72, 74, 76, 78, 79, 81, 84] // C Lydian Dreamy
+                };
+
+                this.noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            }
+
+            init() {
+                if (this.ctx) {
+                    if (this.ctx.state === 'suspended') this.ctx.resume();
+                    return;
+                }
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioCtx();
+
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.value = 0.45;
+
+                // Stereo-like space delay / reverb tail
+                this.delayNode = this.ctx.createDelay(1.0);
+                this.delayNode.delayTime.value = 0.24;
+
+                this.feedbackGain = this.ctx.createGain();
+                this.feedbackGain.gain.value = 0.32;
+
+                const delayFilter = this.ctx.createBiquadFilter();
+                delayFilter.type = 'lowpass';
+                delayFilter.frequency.value = 2200;
+
+                // Routing
+                this.masterGain.connect(this.ctx.destination);
+                this.masterGain.connect(this.delayNode);
+                this.delayNode.connect(delayFilter);
+                delayFilter.connect(this.feedbackGain);
+                this.feedbackGain.connect(this.delayNode);
+                this.delayNode.connect(this.ctx.destination);
+            }
+
+            midiToFreq(midi) {
+                return 440 * Math.pow(2, (midi - 69) / 12);
+            }
+
+            midiToName(midi) {
+                const name = this.noteNames[midi % 12];
+                const oct = Math.floor(midi / 12) - 1;
+                return `${name}${oct}`;
+            }
+
+            // Maps line length (30px to 480px) to a quantized note in the selected scale
+            getNoteFromLength(length) {
+                const scale = this.scales[this.scaleName] || this.scales.pentatonic;
+                const minLen = 30;
+                const maxLen = 460;
+                const clamped = Math.max(minLen, Math.min(maxLen, length));
+                // Shorter line = higher index in scale
+                const normalized = 1 - (clamped - minLen) / (maxLen - minLen);
+                const idx = Math.floor(normalized * (scale.length - 1));
+                const midi = scale[Math.max(0, Math.min(scale.length - 1, idx))];
+                return {
+                    midi,
+                    freq: this.midiToFreq(midi),
+                    name: this.midiToName(midi),
+                    hue: Math.floor(normalized * 300) // Rainbow hue mapping
+                };
+            }
+
+            playBounceNote(length, type = 'pluck') {
+                const noteInfo = this.getNoteFromLength(length);
+                if (this.muted) return noteInfo;
+                this.init();
+
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const subOsc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                if (type === 'pluck') {
+                    // Warm triangle + sine harmonic pluck
+                    osc.type = 'triangle';
+                    subOsc.type = 'sine';
+                    osc.frequency.setValueAtTime(noteInfo.freq, now);
+                    subOsc.frequency.setValueAtTime(noteInfo.freq * 2, now);
+
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(noteInfo.freq * 6, now);
+                    filter.frequency.exponentialRampToValueAtTime(noteInfo.freq * 1.2, now + 0.45);
+
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(0.38, now + 0.012);
+                    gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.65);
+
+                    osc.connect(filter);
+                    subOsc.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.masterGain);
+
+                    osc.start(now);
+                    subOsc.start(now);
+                    osc.stop(now + 0.68);
+                    subOsc.stop(now + 0.68);
+
+                } else if (type === 'drum') {
+                    // Punchy Super-Bounce Bass Synth + Pitch Drop
+                    const bassFreq = noteInfo.freq * 0.5;
+                    osc.type = 'sawtooth';
+                    subOsc.type = 'sine';
+
+                    // Percussive pitch envelope
+                    osc.frequency.setValueAtTime(bassFreq * 1.8, now);
+                    osc.frequency.exponentialRampToValueAtTime(bassFreq, now + 0.07);
+
+                    subOsc.frequency.setValueAtTime(bassFreq * 2, now);
+                    subOsc.frequency.exponentialRampToValueAtTime(bassFreq * 0.5, now + 0.12);
+
+                    filter.type = 'lowpass';
+                    filter.Q.value = 5;
+                    filter.frequency.setValueAtTime(1800, now);
+                    filter.frequency.exponentialRampToValueAtTime(160, now + 0.35);
+
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(0.5, now + 0.008);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+
+                    osc.connect(filter);
+                    subOsc.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(this.masterGain);
+
+                    osc.start(now);
+                    subOsc.start(now);
+                    osc.stop(now + 0.48);
+                    subOsc.stop(now + 0.48);
+
+                } else if (type === 'arp') {
+                    // Shimmering Boost Bell / High Crystal Arpeggio
+                    const bellFreq = noteInfo.freq * 2;
+                    osc.type = 'sine';
+                    subOsc.type = 'triangle';
+
+                    osc.frequency.setValueAtTime(bellFreq, now);
+                    // Instant two-note sparkle
+                    osc.frequency.setValueAtTime(bellFreq * 1.25, now + 0.055);
+
+                    subOsc.frequency.setValueAtTime(bellFreq * 1.5, now);
+
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+                    gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.55);
+
+                    osc.connect(gain);
+                    subOsc.connect(gain);
+                    gain.connect(this.masterGain);
+
+                    osc.start(now);
+                    subOsc.start(now);
+                    osc.stop(now + 0.58);
+                    subOsc.stop(now + 0.58);
+                }
+
+                return noteInfo;
+            }
+
+            playPortalCollect() {
+                if (this.muted) return;
+                this.init();
+                const now = this.ctx.currentTime;
+                const chord = [60, 64, 67, 72];
+                chord.forEach((midi, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(this.midiToFreq(midi), now + i * 0.04);
+                    gain.gain.setValueAtTime(0.001, now + i * 0.04);
+                    gain.gain.linearRampToValueAtTime(0.15, now + i * 0.04 + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.0005, now + i * 0.04 + 0.45);
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start(now + i * 0.04);
+                    osc.stop(now + i * 0.04 + 0.48);
+                });
+            }
+
+            playSpawnPulse() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.exponentialRampToValueAtTime(440, now + 0.06);
+                gain.gain.setValueAtTime(0.04, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            }
+        }
+
+        const synth = new SynthEngine();
+
+        /* =========================================================================
+           2. GAME STATE & LEVEL DEFINITIONS
+           ========================================================================= */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let W = window.innerWidth;
+        let H = window.innerHeight;
+
+        let currentTool = 'pluck'; // 'pluck' | 'drum' | 'arp' | 'erase'
+        let currentLevelIndex = 0;
+        let spawnInterval = 1300;
+        let lastSpawnTime = 0;
+
+        // Entities
+        let lines = [];
+        let orbs = [];
+        let particles = [];
+        let floatingTexts = [];
+        let emitters = [];
+        let obstacles = [];
+        let goal = { x: 0, y: 0, r: 34, collected: 0, target: 5, minBounces: 0, angle: 0 };
+
+        // Interaction State
+        let pointer = {
+            down: false,
+            rightDown: false,
+            startX: 0,
+            startY: 0,
+            x: 0,
+            y: 0,
+            draggingEntity: null
+        };
+
+        // Level Designs (Normalized 0..1 coordinates so they scale to any screen size)
+        const LEVELS = [
+            {
+                title: "Level 1: First Melody",
+                desc: "Click & drag to draw a musical bounce line that guides the falling orbs into the swirling portal.",
+                target: 5,
+                minBounces: 1,
+                emitters: [{ nx: 0.25, ny: 0.16, vx: 0.5, vy: 0 }],
+                goal: { nx: 0.72, ny: 0.68 },
+                obstacles: [],
+                starterLines: [
+                    { nx1: 0.18, ny1: 0.52, nx2: 0.36, ny2: 0.64, type: 'pluck' }
+                ]
+            },
+            {
+                title: "Level 2: Over the Wall",
+                desc: "Try the Pink 'Super Bass' line! It gives orbs extra high bounce power to hop over the central barrier.",
+                target: 5,
+                minBounces: 1,
+                emitters: [{ nx: 0.2, ny: 0.2, vx: 1.2, vy: 0 }],
+                goal: { nx: 0.8, ny: 0.65 },
+                obstacles: [
+                    { nx: 0.48, ny: 0.35, nw: 0.035, nh: 0.55 }
+                ],
+                starterLines: []
+            },
+            {
+                title: "Level 3: Harmonic Cascade",
+                desc: "Orbs must bounce at least 3 TIMES before entering the portal! Build a staircase of notes.",
+                target: 6,
+                minBounces: 3,
+                emitters: [{ nx: 0.18, ny: 0.14, vx: 0.3, vy: 0 }],
+                goal: { nx: 0.82, ny: 0.78 },
+                obstacles: [
+                    { nx: 0.38, ny: 0.0, nw: 0.03, nh: 0.42 },
+                    { nx: 0.62, ny: 0.52, nw: 0.03, nh: 0.48 }
+                ],
+                starterLines: []
+            },
+            {
+                title: "Level 4: Speed Boost Ramp",
+                desc: "Use the Gold 'Boost Bell' line to accelerate orbs uphill through the narrow laser corridor!",
+                target: 6,
+                minBounces: 2,
+                emitters: [{ nx: 0.15, ny: 0.55, vx: 1.0, vy: 0 }],
+                goal: { nx: 0.85, ny: 0.28 },
+                obstacles: [
+                    { nx: 0.42, ny: 0.48, nw: 0.32, nh: 0.04 },
+                    { nx: 0.42, ny: 0.15, nw: 0.32, nh: 0.04 }
+                ],
+                starterLines: []
+            },
+            {
+                title: "Level 5: Duet Streams",
+                desc: "Two emitters drop orbs in polyrhythm! Guide both streams into the center portal.",
+                target: 8,
+                minBounces: 2,
+                emitters: [
+                    { nx: 0.18, ny: 0.18, vx: 0.6, vy: 0 },
+                    { nx: 0.82, ny: 0.18, vx: -0.6, vy: 0 }
+                ],
+                goal: { nx: 0.5, ny: 0.75 },
+                obstacles: [
+                    { nx: 0.38, ny: 0.42, nw: 0.24, nh: 0.045 }
+                ],
+                starterLines: []
+            },
+            {
+                title: "Level 6: The Synth Labyrinth",
+                desc: "Master challenge: 3+ bounces required around dual barriers!",
+                target: 7,
+                minBounces: 3,
+                emitters: [{ nx: 0.15, ny: 0.16, vx: 1.5, vy: 0 }],
+                goal: { nx: 0.18, ny: 0.78 },
+                obstacles: [
+                    { nx: 0.1, ny: 0.45, nw: 0.55, nh: 0.04 },
+                    { nx: 0.82, ny: 0.25, nw: 0.035, nh: 0.55 }
+                ],
+                starterLines: []
+            },
+            {
+                title: "★ Free Sandbox Studio",
+                desc: "No rules! Drag the Emitters or Goal Portal anywhere. Draw strings & create looping ambient music.",
+                target: Infinity,
+                minBounces: 0,
+                isSandbox: true,
+                emitters: [
+                    { nx: 0.28, ny: 0.16, vx: 0.4, vy: 0 },
+                    { nx: 0.68, ny: 0.16, vx: -0.4, vy: 0 }
+                ],
+                goal: { nx: 0.5, ny: 0.82 },
+                obstacles: [],
+                starterLines: [
+                    { nx1: 0.20, ny1: 0.45, nx2: 0.38, ny2: 0.56, type: 'pluck' },
+                    { nx1: 0.78, ny1: 0.45, nx2: 0.60, ny2: 0.56, type: 'arp' },
+                    { nx1: 0.38, ny1: 0.70, nx2: 0.62, ny2: 0.70, type: 'drum' }
+                ]
+            }
+        ];
+
+        /* =========================================================================
+           3. INITIALIZATION & LEVEL LOADING
+           ========================================================================= */
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const oldW = W || rect.width;
+            const oldH = H || rect.height;
+            W = canvas.width = rect.width;
+            H = canvas.height = rect.height;
+
+            // Rescale existing elements proportionally on window resize
+            if (oldW > 0 && oldH > 0 && (oldW !== W || oldH !== H)) {
+                const sx = W / oldW;
+                const sy = H / oldH;
+                lines.forEach(l => {
+                    l.x1 *= sx; l.y1 *= sy;
+                    l.x2 *= sx; l.y2 *= sy;
+                    updateLineMetrics(l);
+                });
+                emitters.forEach(e => { e.x *= sx; e.y *= sy; });
+                obstacles.forEach(o => { o.x *= sx; o.y *= sy; o.w *= sx; o.h *= sy; });
+                goal.x *= sx; goal.y *= sy;
+            }
+        }
+
+        function updateLineMetrics(line) {
+            line.length = Math.hypot(line.x2 - line.x1, line.y2 - line.y1);
+            const noteInfo = synth.getNoteFromLength(line.length);
+            line.noteName = noteInfo.name;
+            line.hue = noteInfo.hue;
+        }
+
+        function createLineObject(x1, y1, x2, y2, type = 'pluck') {
+            const line = {
+                x1, y1, x2, y2,
+                type,
+                vibration: 0,
+                vibPhase: 0,
+                flash: 0,
+                length: 0,
+                noteName: 'C4',
+                hue: 180
+            };
+            updateLineMetrics(line);
+            return line;
+        }
+
+        function loadLevel(index) {
+            currentLevelIndex = index;
+            const lvl = LEVELS[index];
+
+            orbs = [];
+            particles = [];
+            floatingTexts = [];
+            lines = [];
+
+            emitters = lvl.emitters.map(e => ({
+                x: e.nx * W,
+                y: e.ny * H,
+                vx: e.vx || 0,
+                vy: e.vy || 0,
+                pulse: 1
+            }));
+
+            goal = {
+                x: lvl.goal.nx * W,
+                y: lvl.goal.ny * H,
+                r: 34,
+                collected: 0,
+                target: lvl.target,
+                minBounces: lvl.minBounces || 0,
+                angle: 0,
+                isSandbox: !!lvl.isSandbox
+            };
+
+            obstacles = (lvl.obstacles || []).map(o => ({
+                x: o.nx * W,
+                y: o.ny * H,
+                w: o.nw * W,
+                h: o.nh * H,
+                flash: 0
+            }));
+
+            if (lvl.starterLines) {
+                lvl.starterLines.forEach(s => {
+                    lines.push(createLineObject(s.nx1 * W, s.ny1 * H, s.nx2 * W, s.ny2 * H, s.type));
+                });
+            }
+
+            // Update UI
+            document.getElementById('level-title').textContent = lvl.title;
+            document.getElementById('level-desc').textContent = lvl.desc;
+            document.getElementById('sandbox-hint').classList.toggle('hidden', !lvl.isSandbox);
+            document.getElementById('win-modal').classList.add('hidden');
+            updateHUD();
+
+            // Highlight active level button
+            document.querySelectorAll('.lvl-btn').forEach((btn, i) => {
+                if (i === index) {
+                    btn.className = "lvl-btn px-2.5 py-1 rounded-lg font-bold bg-cyan-500/25 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(34,211,238,0.3)] transition";
+                } else {
+                    btn.className = "lvl-btn px-2.5 py-1 rounded-lg font-medium text-slate-400 hover:text-white transition";
+                }
+            });
+        }
+
+        function updateHUD() {
+            const badge = document.getElementById('level-badge');
+            if (goal.isSandbox) {
+                badge.textContent = `Collected: ${goal.collected} ∞`;
+            } else {
+                const bounceReq = goal.minBounces > 1 ? ` • Min ${goal.minBounces} Bounces` : '';
+                badge.textContent = `Goal: ${goal.collected} / ${goal.target}${bounceReq}`;
+            }
+            document.getElementById('line-count').textContent = lines.length;
+        }
+
+        /* =========================================================================
+           4. UI CONTROLS & INPUT HANDLERS
+           ========================================================================= */
+        function setTool(tool) {
+            currentTool = tool;
+            ['pluck', 'drum', 'arp', 'erase'].forEach(t => {
+                const btn = document.getElementById(`btn-${t}`);
+                btn.classList.remove(`active-${t}`);
+                if (t === tool) btn.classList.add(`active-${t}`);
+            });
+        }
+
+        function undoLine() {
+            if (lines.length > 0) {
+                lines.pop();
+                updateHUD();
+            }
+        }
+
+        function clearLines() {
+            lines = [];
+            updateHUD();
+        }
+
+        function toggleMute() {
+            synth.muted = !synth.muted;
+            document.getElementById('mute-icon').textContent = synth.muted ? '🔇' : '🔊';
+        }
+
+        function closeWinModal() {
+            document.getElementById('win-modal').classList.add('hidden');
+        }
+
+        function nextLevel() {
+            const next = (currentLevelIndex + 1) % LEVELS.length;
+            loadLevel(next);
+        }
+
+        // Level Buttons Setup
+        document.querySelectorAll('.lvl-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                synth.init();
+                loadLevel(parseInt(btn.dataset.level, 10));
+            });
+        });
+
+        // Scale Selector
+        document.getElementById('scale-select').addEventListener('change', (e) => {
+            synth.scaleName = e.target.value;
+            lines.forEach(l => updateLineMetrics(l));
+        });
+
+        // Spawn Rate Slider
+        document.getElementById('rate-slider').addEventListener('input', (e) => {
+            // Invert so sliding right = faster tempo
+            const val = parseInt(e.target.value, 10);
+            spawnInterval = 2750 - val;
+        });
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                undoLine();
+            } else if (e.key === '1') setTool('pluck');
+            else if (e.key === '2') setTool('drum');
+            else if (e.key === '3') setTool('arp');
+            else if (e.key === '4' || e.key.toLowerCase() === 'e') setTool('erase');
+        });
+
+        /* =========================================================================
+           5. CANVAS POINTER / TOUCH INTERACTION (Draw, Erase, Move Sandbox Entities)
+           ========================================================================= */
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function distToSegment(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const l2 = dx * dx + dy * dy;
+            if (l2 === 0) return { dist: Math.hypot(px - x1, py - y1), cx: x1, cy: y1, t: 0 };
+            let t = ((px - x1) * dx + (py - y1) * dy) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const cx = x1 + t * dx;
+            const cy = y1 + t * dy;
+            return { dist: Math.hypot(px - cx, py - cy), cx, cy, t };
+        }
+
+        function eraseLinesNear(x, y, radius = 18) {
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const l = lines[i];
+                const { dist, cx, cy } = distToSegment(x, y, l.x1, l.y1, l.x2, l.y2);
+                if (dist < radius) {
+                    // Burst of sparks on erase
+                    spawnParticles(cx, cy, `hsl(${l.hue}, 95%, 65%)`, 12);
+                    lines.splice(i, 1);
+                    updateHUD();
+                }
+            }
+        }
+
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+        function handlePointerDown(e) {
+            synth.init();
+            const pos = getCanvasCoords(e);
+            pointer.x = pos.x;
+            pointer.y = pos.y;
+            pointer.startX = pos.x;
+            pointer.startY = pos.y;
+
+            if (e.button === 2 || currentTool === 'erase') {
+                pointer.rightDown = true;
+                eraseLinesNear(pos.x, pos.y);
+                return;
+            }
+
+            // Check if dragging Emitter or Goal in Sandbox Mode (or emitter anywhere)
+            for (let em of emitters) {
+                if (Math.hypot(pos.x - em.x, pos.y - em.y) < 28) {
+                    pointer.draggingEntity = em;
+                    return;
+                }
+            }
+            if (goal.isSandbox && Math.hypot(pos.x - goal.x, pos.y - goal.y) < goal.r + 8) {
+                pointer.draggingEntity = goal;
+                return;
+            }
+
+            pointer.down = true;
+        }
+
+        function handlePointerMove(e) {
+            const pos = getCanvasCoords(e);
+            pointer.x = pos.x;
+            pointer.y = pos.y;
+
+            if (pointer.rightDown) {
+                eraseLinesNear(pos.x, pos.y);
+                return;
+            }
+
+            if (pointer.draggingEntity) {
+                pointer.draggingEntity.x = Math.max(30, Math.min(W - 30, pos.x));
+                pointer.draggingEntity.y = Math.max(30, Math.min(H - 30, pos.y));
+                return;
+            }
+        }
+
+        function handlePointerUp() {
+            if (pointer.down) {
+                const len = Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY);
+                if (len >= 24) {
+                    const newLine = createLineObject(pointer.startX, pointer.startY, pointer.x, pointer.y, currentTool);
+                    lines.push(newLine);
+                    // Audition the note gently when drawn!
+                    const info = synth.playBounceNote(newLine.length, newLine.type);
+                    document.getElementById('last-note').textContent = info.name;
+                    newLine.vibration = 6;
+                    newLine.flash = 0.8;
+                    floatingTexts.push({
+                        x: (newLine.x1 + newLine.x2) / 2,
+                        y: (newLine.y1 + newLine.y2) / 2 - 10,
+                        text: info.name,
+                        color: getLineColor(newLine, 1),
+                        alpha: 1,
+                        vy: -1.2
+                    });
+                    updateHUD();
+                }
+            }
+            pointer.down = false;
+            pointer.rightDown = false;
+            pointer.draggingEntity = null;
+        }
+
+        canvas.addEventListener('mousedown', handlePointerDown);
+        window.addEventListener('mousemove', handlePointerMove);
+        window.addEventListener('mouseup', handlePointerUp);
+
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handlePointerDown(e); }, { passive: false });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); handlePointerMove(e); }, { passive: false });
+        window.addEventListener('touchend', handlePointerUp);
+
+        /* =========================================================================
+           6. PHYSICS ENGINE & PARTICLES
+           ========================================================================= */
+        function spawnOrb(emitter) {
+            emitter.pulse = 1.65;
+            synth.playSpawnPulse();
+            orbs.push({
+                x: emitter.x,
+                y: emitter.y + 14,
+                vx: emitter.vx + (Math.random() - 0.5) * 0.25,
+                vy: emitter.vy + 0.5,
+                r: 9,
+                bounces: 0,
+                hue: 185,
+                trail: [],
+                lastLineHit: null,
+                hitCooldown: 0
+            });
+        }
+
+        function spawnParticles(x, y, color, count = 18) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1.2 + Math.random() * 5.2;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: 1.5 + Math.random() * 2.8,
+                    color,
+                    alpha: 1,
+                    decay: 0.02 + Math.random() * 0.025
+                });
+            }
+        }
+
+        function getLineColor(line, alpha = 1) {
+            if (line.type === 'drum') return `hsla(330, 95%, 62%, ${alpha})`;
+            if (line.type === 'arp')  return `hsla(46, 100%, 58%, ${alpha})`;
+            return `hsla(${line.hue}, 95%, 60%, ${alpha})`;
+        }
+
+        function updatePhysics(timestamp) {
+            // 1. Spawn Orbs at Tempo
+            if (timestamp - lastSpawnTime > spawnInterval) {
+                emitters.forEach(em => spawnOrb(em));
+                lastSpawnTime = timestamp;
+            }
+
+            // 2. Update Emitters & Goal Animation
+            emitters.forEach(em => {
+                em.pulse += (1 - em.pulse) * 0.12;
+            });
+            goal.angle += 0.04;
+
+            // 3. Update Vibrating Lines
+            lines.forEach(l => {
+                if (l.vibration > 0.05) {
+                    l.vibration *= 0.90;
+                    l.vibPhase += 0.65;
+                } else {
+                    l.vibration = 0;
+                }
+                if (l.flash > 0.01) l.flash *= 0.88;
+            });
+
+            // 4. Update Orbs (Sub-stepped 2x for crisp high-speed collision)
+            const subSteps = 2;
+            const gravity = 0.21 / subSteps;
+
+            for (let i = orbs.length - 1; i >= 0; i--) {
+                const orb = orbs[i];
+                if (orb.hitCooldown > 0) orb.hitCooldown--;
+
+                // Record smooth motion trail
+                orb.trail.push({ x: orb.x, y: orb.y });
+                if (orb.trail.length > 16) orb.trail.shift();
+
+                let collected = false;
+
+                for (let step = 0; step < subSteps; step++) {
+                    orb.vy += gravity;
+                    orb.x += orb.vx / subSteps;
+                    orb.y += orb.vy / subSteps;
+
+                    // Check Goal Portal Collision
+                    const distGoal = Math.hypot(orb.x - goal.x, orb.y - goal.y);
+                    if (distGoal < goal.r - 2) {
+                        if (orb.bounces >= goal.minBounces) {
+                            collected = true;
+                            goal.collected++;
+                            synth.playPortalCollect();
+                            spawnParticles(goal.x, goal.y, '#38bdf8', 28);
+                            floatingTexts.push({
+                                x: goal.x,
+                                y: goal.y - 25,
+                                text: goal.isSandbox ? '★ JAM!' : `${goal.collected}/${goal.target}`,
+                                color: '#38bdf8',
+                                alpha: 1,
+                                vy: -1.5
+                            });
+                            updateHUD();
+
+                            if (!goal.isSandbox && goal.collected >= goal.target) {
+                                document.getElementById('win-modal').classList.remove('hidden');
+                            }
+                            break;
+                        } else if (orb.hitCooldown === 0) {
+                            // Need more bounces warning
+                            orb.hitCooldown = 25;
+                            floatingTexts.push({
+                                x: goal.x,
+                                y: goal.y - 35,
+                                text: `Need ${goal.minBounces} Bounces!`,
+                                color: '#fb7185',
+                                alpha: 1,
+                                vy: -1.2
+                            });
+                        }
+                    }
+
+                    // Check Obstacle Rect Collisions
+                    for (let obs of obstacles) {
+                        const closestX = Math.max(obs.x, Math.min(orb.x, obs.x + obs.w));
+                        const closestY = Math.max(obs.y, Math.min(orb.y, obs.y + obs.h));
+                        const dx = orb.x - closestX;
+                        const dy = orb.y - closestY;
+                        const d = Math.hypot(dx, dy);
+
+                        if (d < orb.r) {
+                            obs.flash = 0.7;
+                            // Resolve AABB bounce
+                            const overlapX = Math.min( Math.abs((obs.x + obs.w) - orb.x), Math.abs(orb.x - obs.x) );
+                            const overlapY = Math.min( Math.abs((obs.y + obs.h) - orb.y), Math.abs(orb.y - obs.y) );
+                            if (overlapX < overlapY) {
+                                orb.vx *= -0.78;
+                                orb.x += (orb.x < obs.x + obs.w / 2 ? -1 : 1) * (orb.r - d + 1);
+                            } else {
+                                orb.vy *= -0.78;
+                                orb.y += (orb.y < obs.y + obs.h / 2 ? -1 : 1) * (orb.r - d + 1);
+                            }
+                            spawnParticles(closestX, closestY, '#64748b', 6);
+                        }
+                    }
+
+                    // Check Musical Line Collisions
+                    for (let line of lines) {
+                        const { dist, cx, cy } = distToSegment(orb.x, orb.y, line.x1, line.y1, line.x2, line.y2);
+                        if (dist <= orb.r + 3 && (orb.lastLineHit !== line || orb.hitCooldown === 0)) {
+                            // Compute normal vector pointing toward the orb
+                            let nx = orb.x - cx;
+                            let ny = orb.y - cy;
+                            let len = Math.hypot(nx, ny);
+                            if (len === 0) {
+                                // Fallback to line perpendicular
+                                const ldx = line.x2 - line.x1;
+                                const ldy = line.y2 - line.y1;
+                                nx = -ldy;
+                                ny = ldx;
+                                len = Math.hypot(nx, ny) || 1;
+                            }
+                            nx /= len;
+                            ny /= len;
+
+                            // Push orb outside the string thickness
+                            orb.x = cx + nx * (orb.r + 3.5);
+                            orb.y = cy + ny * (orb.r + 3.5);
+
+                            // Reflect velocity across normal: V' = V - (1 + e)(V · N)N
+                            const dot = orb.vx * nx + orb.vy * ny;
+                            if (dot < 0) {
+                                let restitution = 0.90;
+                                if (line.type === 'drum') restitution = 1.36; // Super bounce!
+                                if (line.type === 'arp')  restitution = 0.95;
+
+                                orb.vx = orb.vx - (1 + restitution) * dot * nx;
+                                orb.vy = orb.vy - (1 + restitution) * dot * ny;
+
+                                // Minimum upward energy so gently dropped orbs stay lively
+                                const speed = Math.hypot(orb.vx, orb.vy);
+                                if (line.type === 'drum' && speed < 11) {
+                                    orb.vx = nx * 11.5;
+                                    orb.vy = ny * 11.5;
+                                } else if (speed < 5.5) {
+                                    orb.vx += nx * 2.2;
+                                    orb.vy += ny * 2.2;
+                                }
+
+                                // Speed Boost along slope for 'arp'
+                                if (line.type === 'arp') {
+                                    let tx = (line.x2 - line.x1) / line.length;
+                                    let ty = (line.y2 - line.y1) / line.length;
+                                    // Accelerate in current tangent direction
+                                    const tDot = orb.vx * tx + orb.vy * ty;
+                                    const dir = tDot >= 0 ? 1 : -1;
+                                    orb.vx += tx * dir * 4.8;
+                                    orb.vy += ty * dir * 4.8;
+                                }
+
+                                // Cap max velocity for stability
+                                const finalSpeed = Math.hypot(orb.vx, orb.vy);
+                                if (finalSpeed > 18) {
+                                    orb.vx = (orb.vx / finalSpeed) * 18;
+                                    orb.vy = (orb.vy / finalSpeed) * 18;
+                                }
+
+                                // Trigger Musical Note + String Vibration + Sparks
+                                const noteInfo = synth.playBounceNote(line.length, line.type);
+                                document.getElementById('last-note').textContent = noteInfo.name;
+
+                                line.vibration = Math.min(20, 8 + finalSpeed * 0.8);
+                                line.flash = 1.0;
+
+                                orb.bounces++;
+                                orb.hue = line.type === 'drum' ? 330 : (line.type === 'arp' ? 46 : line.hue);
+                                orb.lastLineHit = line;
+                                orb.hitCooldown = 8;
+
+                                const col = getLineColor(line, 1);
+                                spawnParticles(cx, cy, col, 18);
+
+                                floatingTexts.push({
+                                    x: cx,
+                                    y: cy - 12,
+                                    text: noteInfo.name,
+                                    color: col,
+                                    alpha: 1,
+                                    vy: -1.4
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Remove orb if collected or out of bounds
+                if (collected || orb.y > H + 80 || orb.x < -80 || orb.x > W + 80) {
+                    orbs.splice(i, 1);
+                }
+            }
+
+            // 5. Update Particles & Floating Labels
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vx *= 0.96;
+                p.vy *= 0.96;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.022;
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        /* =========================================================================
+           7. RENDERER (Neon Glows, Guitar String Vibration, Portals & Trails)
+           ========================================================================= */
+        function drawBackgroundGrid() {
+            ctx.fillStyle = '#070810';
+            ctx.fillRect(0, 0, W, H);
+
+            const spacing = 48;
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.045)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = (W % spacing) / 2; x < W; x += spacing) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, H);
+            }
+            for (let y = (H % spacing) / 2; y < H; y += spacing) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(W, y);
+            }
+            ctx.stroke();
+        }
+
+        function drawObstacles() {
+            obstacles.forEach(obs => {
+                if (obs.flash > 0.01) obs.flash *= 0.9;
+                ctx.save();
+                ctx.fillStyle = `rgba(15, 23, 42, 0.9)`;
+                ctx.strokeStyle = `rgba(148, 163, 184, ${0.35 + obs.flash * 0.6})`;
+                ctx.lineWidth = 2;
+                ctx.shadowColor = '#94a3b8';
+                ctx.shadowBlur = obs.flash * 18;
+
+                ctx.beginPath();
+                ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 8);
+                ctx.fill();
+                ctx.stroke();
+
+                // Diagonal hazard stripes inside obstacle
+                ctx.clip();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+                ctx.lineWidth = 8;
+                for (let d = -obs.h; d < obs.w + obs.h; d += 20) {
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x + d, obs.y);
+                    ctx.lineTo(obs.x + d - obs.h, obs.y + obs.h);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            });
+        }
+
+        function drawGoalPortal() {
+            ctx.save();
+            ctx.translate(goal.x, goal.y);
+
+            // Outer pulsing aura
+            const grad = ctx.createRadialGradient(0, 0, 6, 0, 0, goal.r * 1.45);
+            grad.addColorStop(0, 'rgba(232, 121, 249, 0.45)');
+            grad.addColorStop(0.5, 'rgba(34, 211, 238, 0.25)');
+            grad.addColorStop(1, 'rgba(34, 211, 238, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, goal.r * 1.45, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Swirling Vortex Rings
+            for (let r = 0; r < 3; r++) {
+                ctx.save();
+                ctx.rotate(goal.angle * (r % 2 === 0 ? 1 : -1.3) + r * 1.2);
+                ctx.strokeStyle = r === 0 ? '#22d3ee' : (r === 1 ? '#e879f9' : '#38bdf8');
+                ctx.lineWidth = 3;
+                ctx.setLineDash([14, 10]);
+                ctx.beginPath();
+                ctx.arc(0, 0, goal.r - r * 7, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // Portal Center Counter
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const label = goal.isSandbox ? '∞' : `${goal.collected}/${goal.target}`;
+            ctx.fillText(label, 0, 0);
+
+            ctx.restore();
+        }
+
+        function drawEmitters() {
+            emitters.forEach(em => {
+                ctx.save();
+                ctx.translate(em.x, em.y);
+
+                // Pulse Halo
+                ctx.beginPath();
+                ctx.arc(0, 0, 20 * em.pulse, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Emitter Core
+                ctx.shadowColor = '#22d3ee';
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = '#0f172a';
+                ctx.strokeStyle = '#22d3ee';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Inner dot
+                ctx.fillStyle = '#22d3ee';
+                ctx.beginPath();
+                ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+        }
+
+        function drawMusicalLines() {
+            lines.forEach(l => {
+                ctx.save();
+                const col = getLineColor(l, 1);
+
+                // Calculate perpendicular midpoint displacement for guitar-string vibration
+                const mx = (l.x1 + l.x2) / 2;
+                const my = (l.y1 + l.y2) / 2;
+                const dx = l.x2 - l.x1;
+                const dy = l.y2 - l.y1;
+                const nx = -dy / l.length;
+                const ny = dx / l.length;
+                const offset = Math.sin(l.vibPhase) * l.vibration;
+
+                const cx = mx + nx * offset;
+                const cy = my + ny * offset;
+
+                // Neon Glow
+                ctx.shadowColor = col;
+                ctx.shadowBlur = 14 + l.flash * 22;
+                ctx.strokeStyle = l.flash > 0.35 ? '#ffffff' : col;
+                ctx.lineWidth = l.type === 'drum' ? 7 : 5;
+                ctx.lineCap = 'round';
+
+                ctx.beginPath();
+                ctx.moveTo(l.x1, l.y1);
+                ctx.quadraticCurveTo(cx, cy, l.x2, l.y2);
+                ctx.stroke();
+
+                // Anchor Nodes on Endpoints
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(l.x1, l.y1, 3.5, 0, Math.PI * 2);
+                ctx.arc(l.x2, l.y2, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Subtle Note Label at Midpoint
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                ctx.font = '600 10px "JetBrains Mono", monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(l.noteName, mx + nx * 12, my + ny * 12);
+
+                ctx.restore();
+            });
+
+            // Draw Live Preview Line while dragging
+            if (pointer.down && currentTool !== 'erase') {
+                const len = Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY);
+                const info = synth.getNoteFromLength(len);
+                const previewColor = currentTool === 'drum' ? '#f472b6' : (currentTool === 'arp' ? '#facc15' : `hsl(${info.hue}, 95%, 60%)`);
+
+                ctx.save();
+                ctx.strokeStyle = previewColor;
+                ctx.lineWidth = 4;
+                ctx.setLineDash([8, 6]);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(pointer.startX, pointer.startY);
+                ctx.lineTo(pointer.x, pointer.y);
+                ctx.stroke();
+
+                // Show live note badge next to cursor
+                if (len >= 24) {
+                    ctx.fillStyle = previewColor;
+                    ctx.font = 'bold 12px "JetBrains Mono", monospace';
+                    ctx.fillText(`${info.name}`, pointer.x + 12, pointer.y - 10);
+                }
+                ctx.restore();
+            }
+        }
+
+        function drawOrbs() {
+            orbs.forEach(orb => {
+                // Draw glowing motion trail
+                if (orb.trail.length > 1) {
+                    for (let t = 0; t < orb.trail.length - 1; t++) {
+                        const ratio = t / orb.trail.length;
+                        ctx.strokeStyle = `hsla(${orb.hue}, 95%, 62%, ${ratio * 0.55})`;
+                        ctx.lineWidth = ratio * orb.r * 1.6;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(orb.trail[t].x, orb.trail[t].y);
+                        ctx.lineTo(orb.trail[t + 1].x, orb.trail[t + 1].y);
+                        ctx.stroke();
+                    }
+                }
+
+                // Draw Orb Core
+                ctx.save();
+                ctx.shadowColor = `hsl(${orb.hue}, 95%, 60%)`;
+                ctx.shadowBlur = 16;
+                ctx.fillStyle = `hsl(${orb.hue}, 95%, 65%)`;
+                ctx.beginPath();
+                ctx.arc(orb.x, orb.y, orb.r, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(orb.x, orb.y, orb.r * 0.48, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function drawParticlesAndText() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.font = 'bold 13px "JetBrains Mono", monospace';
+                ctx.fillStyle = ft.color;
+                ctx.shadowColor = ft.color;
+                ctx.shadowBlur = 10;
+                ctx.textAlign = 'center';
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+        }
+
+        /* =========================================================================
+           8. MAIN ANIMATION LOOP
+           ========================================================================= */
+        function gameLoop(timestamp) {
+            updatePhysics(timestamp);
+
+            drawBackgroundGrid();
+            drawObstacles();
+            drawGoalPortal();
+            drawMusicalLines();
+            drawOrbs();
+            drawEmitters();
+            drawParticlesAndText();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        window.onload = function () {
+            resizeCanvas();
+            loadLevel(0);
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
