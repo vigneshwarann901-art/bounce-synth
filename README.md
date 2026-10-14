@@ -50,3 +50,5 @@ The page loads Tailwind CSS and Google Fonts from external CDNs, so an internet 
 ## Credits
 
 Created with assistance from Google's Gemini. Game code and design should be reviewed by the project owner before public distribution.
+
+Deployment retry
